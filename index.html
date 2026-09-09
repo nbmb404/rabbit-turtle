@@ -123,18 +123,18 @@
       };
 
       const basePlatforms = [
-        { x: 42, y: 540, w: 716, h: 16, gaps: [{ x: 342, w: 58 }], spikes: [{ x: 548, w: 50 }] },
-        { x: 92, y: 452, w: 616, h: 16, gaps: [{ x: 236, w: 46 }], spikes: [{ x: 132, w: 42 }] },
+        { x: 42, y: 540, w: 716, h: 16, gaps: [{ x: 342, w: 58 }], spikes: [{ x: 640, w: 42 }] },
+        { x: 92, y: 452, w: 616, h: 16, gaps: [{ x: 236, w: 46 }], spikes: [{ x: 320, w: 42 }] },
         { x: 38, y: 364, w: 610, h: 16, gaps: [{ x: 468, w: 48 }], spikes: [{ x: 320, w: 46 }] },
-        { x: 152, y: 276, w: 606, h: 16, gaps: [{ x: 600, w: 48 }], spikes: [{ x: 214, w: 42 }] },
-        { x: 66, y: 188, w: 610, h: 16, gaps: [{ x: 250, w: 48 }], spikes: [{ x: 472, w: 42 }] },
+        { x: 152, y: 276, w: 606, h: 16, gaps: [{ x: 600, w: 48 }], spikes: [{ x: 300, w: 42 }] },
+        { x: 66, y: 188, w: 610, h: 16, gaps: [{ x: 250, w: 48 }], spikes: [{ x: 370, w: 42 }] },
         { x: 230, y: 104, w: 332, h: 16, gaps: [], spikes: [] }
       ];
 
       const ladders = [
         { x: 126, y: 452, h: 88 },
-        { x: 404, y: 364, h: 176 },
-        { x: 626, y: 276, h: 176 },
+        { x: 420, y: 364, h: 176 },
+        { x: 550, y: 276, h: 176 },
         { x: 190, y: 188, h: 176 },
         { x: 508, y: 104, h: 172 }
       ];
@@ -273,7 +273,7 @@
         return game.level.ladders.find(l =>
           actor.x + actor.w / 2 > l.x - 14 &&
           actor.x + actor.w / 2 < l.x + 38 &&
-          actor.y + actor.h > l.y &&
+          actor.y + actor.h >= l.y &&
           actor.y < l.y + l.h + 20
         );
       }
@@ -322,11 +322,16 @@
 
       function updatePlayer(dt) {
         const p = game.player;
-        const speed = 168 + game.stage * 6;
+        const speed = 210 + game.stage * 6;
         const ladder = nearbyLadder(p);
         const wantsClimb = keys.has("ArrowUp") || keys.has("ArrowDown");
 
-        if (ladder && wantsClimb) {
+        const feet = p.y + p.h;
+        const canClimb = ladder && (
+          (keys.has("ArrowUp") && feet > ladder.y + 1) ||
+          (keys.has("ArrowDown") && feet < ladder.y + ladder.h - 1)
+        );
+        if (canClimb && wantsClimb) {
           p.onLadder = true;
           p.ladder = ladder;
           p.x += (ladder.x + 4 - p.x) * Math.min(1, dt * 9);
@@ -350,9 +355,13 @@
                 p.y + p.h >= seg.y
               )
             : null;
+          const endpoint = climb < 0 && p.y + p.h <= p.ladder.y
+            ? { y: p.ladder.y }
+            : climb > 0 && p.y + p.h >= p.ladder.y + p.ladder.h
+              ? { y: p.ladder.y + p.ladder.h } : null;
           const restingFloor = platformAtFeet(p);
-          if (crossedFloor || (!wantsClimb && restingFloor)) {
-            const floor = crossedFloor || restingFloor;
+          if (endpoint || crossedFloor || (!wantsClimb && restingFloor)) {
+            const floor = endpoint || crossedFloor || restingFloor;
             p.y = floor.y - p.h;
             p.vy = 0;
             p.onLadder = false;
@@ -389,7 +398,7 @@
 
         for (const plat of game.level.platforms) {
           for (const spike of plat.spikes) {
-            if (rects(p, { x: spike.x, y: plat.y - 16, w: spike.w, h: 18 })) hurt();
+            if (p.y + p.h <= plat.y + 8 && rects(p, { x: spike.x, y: plat.y - 16, w: spike.w, h: 18 })) hurt();
           }
         }
         if (p.y > H + 40 || game.timer <= 0) hurt();
@@ -462,7 +471,9 @@
         }
         game.timer -= dt;
         updatePlayer(dt);
+        if (game.respawnTime > 0 || game.state !== "playing") return;
         updateEnemies(dt);
+        if (game.respawnTime > 0 || game.state !== "playing") return;
         updateItems();
         game.cameraShake = Math.max(0, game.cameraShake - dt * 35);
       }
