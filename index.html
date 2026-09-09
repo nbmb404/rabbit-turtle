@@ -282,6 +282,22 @@
         return null;
       }
 
+      function platformAtFeet(actor, tolerance = 7) {
+        for (const p of game.level.platforms) {
+          for (const seg of solidSegments(p)) {
+            const feet = actor.y + actor.h;
+            if (
+              actor.x + actor.w > seg.x &&
+              actor.x < seg.x + seg.w &&
+              Math.abs(feet - seg.y) <= tolerance
+            ) {
+              return seg;
+            }
+          }
+        }
+        return null;
+      }
+
       function hurt() {
         if (game.respawnTime > 0 || game.state !== "playing") return;
         game.lives--;
@@ -311,11 +327,31 @@
 
         if (p.onLadder) {
           const climb = (keys.has("ArrowUp") ? -1 : 0) + (keys.has("ArrowDown") ? 1 : 0);
+          const oldFeet = p.y + p.h;
           p.vy = climb * 118;
           p.y += p.vy * dt;
           p.vx = 0;
           p.anim += Math.abs(climb) * dt * 10;
-          if (!nearbyLadder(p) || (!wantsClimb && platformUnder({ ...p, vy: 40 }))) p.onLadder = false;
+          const crossedFloor = climb > 0
+            ? game.level.platforms
+              .flatMap(platform => solidSegments(platform))
+              .find(seg =>
+                p.x + p.w > seg.x &&
+                p.x < seg.x + seg.w &&
+                oldFeet < seg.y - 2 &&
+                p.y + p.h >= seg.y
+              )
+            : null;
+          const restingFloor = platformAtFeet(p);
+          if (crossedFloor || (!wantsClimb && restingFloor)) {
+            const floor = crossedFloor || restingFloor;
+            p.y = floor.y - p.h;
+            p.vy = 0;
+            p.onLadder = false;
+            p.grounded = true;
+          } else if (!nearbyLadder(p)) {
+            p.onLadder = false;
+          }
         } else {
           const move = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
           p.vx = move * speed;
